@@ -13,159 +13,75 @@
 
 CardioVID-Bot es un bot de Telegram diseñado para asistir en el monitoreo de pacientes con EPOC (Enfermedad Pulmonar Obstructiva Crónica) a través de un flujo de conversación estructurado. El bot sigue una ruta de conversación predefinida para evaluar los síntomas del paciente y proporcionar recomendaciones apropiadas o programar citas médicas.
 
-## 🛠️ Stack Tecnológico Recomendado
+## ✨ Funcionalidades Implementadas
 
-### 🤖 SDK de Telegram Bot
+### 🤖 Características Principales
 
-**Recomendado: aiogram 3.x**
+- **Conversación Estructurada**: Flujo de conversación guiado por nodos definidos en JSON.
+- **Botones Interactivos**: Uso de teclados en línea para facilitar respuestas.
+- **Sesiones de Usuario**: Registro completo de cada interacción en MongoDB.
+- **Protocolo de Exacerbación**: Activación rápida escribiendo "EMPEORÉ" o usando el comando `/empeore`.
+- **Historial de Sesiones**: Visualización del historial de interacciones pasadas.
+- **Menú de Comandos**: Acceso rápido a todas las funciones mediante el menú nativo de Telegram.
 
-```bash
-pip install aiogram==3.1.1
-```
+### 📱 Comandos Disponibles
 
-<details>
-<summary>✨ Características principales</summary>
+- `/start` - Iniciar o reiniciar el bot
+- `/help` - Mostrar ayuda y comandos disponibles
+- `/reset` - Reiniciar la conversación desde el inicio
+- `/historial` - Ver el historial de interacciones pasadas
+- `/empeore` - Reportar empeoramiento de síntomas (inicia el protocolo de exacerbación)
 
-- Soporte nativo para modelos Pydantic
-- Completamente asíncrono
-- Sugerencias de tipo y prácticas modernas de Python
-- Excelente documentación
-- Comunidad activa
-</details>
+### 💾 Almacenamiento de Datos
 
-<details>
-<summary>🔄 Alternativas</summary>
+El bot almacena en MongoDB:
 
-1. **python-telegram-bot**
-   - ✅ Pros: SDK más popular, bien documentado
-   - ❌ Cons: Menor integración nativa con Pydantic
+1. **Información del Usuario**: Datos básicos del usuario de Telegram.
+2. **Sesiones Completas**: Todas las interacciones desde el inicio hasta el fin de cada sesión.
+3. **Mensajes Finales**: Registro del estado final de cada sesión (completada normalmente, reiniciada o por empeoramiento).
+4. **Historial de Respuestas**: Todas las respuestas proporcionadas por el usuario durante la conversación.
 
-2. **pyTelegramBotAPI (telebot)**
-   - ✅ Pros: Simple y fácil de usar
-   - ❌ Cons: Menos estructurado para flujos de conversación complejos
+### 🔔 Notificaciones y Recordatorios
 
-3. **Telethon**
-   - ✅ Pros: Acceso completo a la API del cliente de Telegram
-   - ❌ Cons: Puede ser excesivo para un bot, menos funcionalidad específica para bots
-</details>
+- Recordatorios periódicos sobre la opción de reportar empeoramiento.
+- Mensajes claros sobre el estado actual de la conversación.
+- Indicaciones sobre cómo proceder en caso de síntomas graves.
 
-### 💾 Base de Datos
+## 🛠️ Stack Tecnológico
 
-**Recomendado: MongoDB**
+- **Framework**: python-telegram-bot
+- **Base de Datos**: MongoDB (con motor para operaciones asíncronas)
+- **Validación de Datos**: Pydantic
+- **Registro**: Loguru
+- **Configuración**: dotenv para variables de entorno
 
-MongoDB es una excelente elección para este proyecto por varias razones:
+## 📊 Modelos de Datos
 
-- Esquema flexible que puede adaptarse a medida que evoluciona el proyecto
-- Estructura de documentos similar a JSON que refleja los formatos de respuesta de Telegram
-- Buen rendimiento para cargas de trabajo con predominio de lectura
-- Configuración y mantenimiento simples
-
-```bash
-pip install motor==3.3.0  # Driver MongoDB asíncrono
-pip install pymongo==4.5.0  # Driver MongoDB síncrono (si es necesario)
-```
-
-<details>
-<summary>🔄 Alternativas</summary>
-
-1. **PostgreSQL (con SQLAlchemy)**
-   - ✅ Pros: Conformidad ACID, datos estructurados
-   - ❌ Cons: Esquema más rígido, requiere más configuración para cambios
-
-2. **Redis**
-   - ✅ Pros: Muy rápido, bueno para almacenar en caché estados de usuarios
-   - ❌ Cons: No ideal como base de datos principal para todos los datos de usuario
-
-3. **SQLite**
-   - ✅ Pros: Configuración cero, portátil
-   - ❌ Cons: No adecuado para producción o acceso concurrente
-</details>
-
-## 📝 Plan de Implementación del Proyecto
-
-### Fase 1: Configuración y Estructura Básica
-
-1. **Configuración del Entorno**
-   - Crear entorno virtual
-   - Instalar dependencias
-   - Configurar gestión de configuración
-
-2. **Registro del Bot**
-   - Registrar bot con BotFather
-   - Obtener token API
-   - Configurar webhook o mecanismo de polling
-
-3. **Estructura Básica del Proyecto**
-   - Definir estructura de carpetas
-   - Crear instancia básica del bot
-   - Implementar registro de logs
-
-### Fase 2: Implementación del Flujo de Conversación
-
-1. **Modelo de Conversación**
-   - Analizar y validar conversation.json usando Pydantic
-   - Crear sistema de gestión de estados
-
-2. **Manejadores de Mensajes**
-   - Implementar manejadores para diferentes estados de conversación
-   - Configurar lógica de teclado y botones
-
-3. **Gestión del Estado del Usuario**
-   - Seguimiento de la posición del usuario en la conversación
-   - Almacenar respuestas del usuario
-
-### Fase 3: Integración de Base de Datos
-
-1. **Diseño del Esquema de Base de Datos**
-   - Colección de usuarios
-   - Colección de historial de conversaciones
-   - Colección de datos de salud del usuario
-
-2. **Operaciones de Base de Datos**
-   - Operaciones CRUD para datos de usuario
-   - Optimizaciones de consultas
-   - Estrategia de respaldo
-
-### Fase 4: Pruebas y Despliegue
-
-1. **Pruebas**
-   - Pruebas unitarias para manejadores
-   - Pruebas de flujo de conversación
-   - Pruebas de integración con MongoDB
-
-2. **Despliegue**
-   - Contenerización con Docker
-   - Configuración de pipeline CI/CD
-   - Configuración del entorno de producción
-
-## 📊 Ejemplos de Modelos Pydantic
-
+### Usuario (UserDB)
 ```python
-from pydantic import BaseModel
-from typing import List, Optional, Dict, Any
+class UserDB(BaseModel):
+    telegram_id: int                    # ID único de Telegram
+    username: Optional[str] = None      # Nombre de usuario (opcional)
+    first_name: str                     # Nombre del usuario
+    last_name: Optional[str] = None     # Apellido (opcional)
+    current_node: str                   # Nodo actual en la conversación
+    responses: Dict[str, Any]           # Historial de respuestas por nodo
+    registered_at: str                  # Fecha de registro
+    last_interaction: str               # Última interacción
+    education_opt_in: bool = False      # Opt-in para contenido educativo
+```
 
-class ConversationOption(BaseModel):
-    text: str
-    next: Optional[str] = None
-
-class ConversationNode(BaseModel):
-    id: str
-    message: str
-    options: Optional[List[ConversationOption]] = None
-    next: Optional[str] = None
-
-class Conversation(BaseModel):
-    conversation: List[ConversationNode]
-
-class User(BaseModel):
-    telegram_id: int
-    username: Optional[str] = None
-    first_name: str
-    last_name: Optional[str] = None
-    current_node: str
-    responses: Dict[str, Any] = {}
-    registered_at: str
-    education_opt_in: bool = False
+### Sesión de Usuario (UserSession)
+```python
+class UserSession(BaseModel):
+    telegram_id: int                    # ID del usuario
+    session_id: str                     # ID único de la sesión
+    start_time: str                     # Hora de inicio
+    end_time: str                       # Hora de finalización
+    session_type: str                   # Tipo: "normal" o "empeoramiento"
+    responses: List[NodeResponse]       # Lista de respuestas en la sesión
+    completed: bool = False             # Si la sesión está completada
+    final_message: Optional[str] = None # Mensaje de finalización
 ```
 
 ## 📂 Estructura del Proyecto
@@ -174,34 +90,23 @@ class User(BaseModel):
 cardiovid-bot/
 ├── README.md
 ├── requirements.txt
-├── .env.example
-├── docker-compose.yml
-├── Dockerfile
+├── .env
+├── conversation.json           # Definición del flujo de conversación
 ├── src/
-│   ├── __init__.py
 │   ├── main.py                 # Punto de entrada
-│   │   ├── __init__.py
-│   │   ├── handlers.py         # Manejadores de mensajes
-│   │   ├── keyboards.py        # Generadores de teclado
-│   │   └── middlewares.py      # Middlewares del bot
 │   ├── config/
-│   │   ├── __init__.py
 │   │   └── settings.py         # Configuración de la aplicación
 │   ├── conversation/
-│   │   ├── __init__.py
-│   │   ├── manager.py          # Gestión de estado de conversación
-│   │   └── models.py           # Modelos Pydantic
+│   │   ├── manager.py          # Gestión del estado de conversación
+│   │   └── models.py           # Modelos de la conversación
 │   └── db/
-│       ├── __init__.py
 │       ├── models.py           # Modelos de base de datos
-│       └── repository.py       # Operaciones de base de datos
-└── tests/
-    ├── __init__.py
-    ├── test_handlers.py
-    └── test_conversation.py
+│       └── repository.py       # Operaciones de MongoDB
+└── logs/
+    └── bot.log                 # Archivos de registro
 ```
 
-## 🗄️ Diseño del Esquema MongoDB
+## 🗄️ Esquema MongoDB
 
 ### Colección de Usuarios
 ```json
@@ -222,17 +127,75 @@ cardiovid-bot/
 }
 ```
 
-## 🚀 Próximos Pasos
+### Colección de Sesiones
+```json
+{
+  "_id": ObjectId,
+  "telegram_id": 123456789,
+  "session_id": "123456789_2023-06-01T10:30:00Z",
+  "start_time": "2023-06-01T10:30:00Z",
+  "end_time": "2023-06-01T10:45:00Z",
+  "session_type": "normal",
+  "responses": [
+    {
+      "node_id": "saludo_inicial",
+      "response": "Sí",
+      "timestamp": "2023-06-01T10:30:00Z",
+      "message_text": "Hola, ¿cómo te sientes hoy?"
+    },
+    {
+      "node_id": "filtro_1",
+      "response": "Sí a 2 o más",
+      "timestamp": "2023-06-01T10:32:00Z",
+      "message_text": "¿Has tenido alguno de estos síntomas?"
+    }
+  ],
+  "completed": true,
+  "final_message": "Conversación finalizada"
+}
+```
 
-1. Clonar este repositorio
-2. Configurar tu entorno virtual
-3. Instalar dependencias con `pip install -r requirements.txt`
-4. Crear un archivo `.env` basado en `.env.example`
-5. Ejecutar el bot con `python src/main.py`
+## 🚀 Configuración y Ejecución
+
+1. **Clonar el repositorio**:
+   ```bash
+   git clone https://github.com/usuario/cardiovid-bot.git
+   cd cardiovid-bot
+   ```
+
+2. **Configurar entorno**:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # En Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+3. **Configurar variables de entorno**:
+   Crear un archivo `.env` con:
+   ```
+   BOT_TOKEN=your_bot_token_from_botfather
+   BOT_NAME=your_bot_name
+   MONGODB_CONNECTION_STRING=your_mongodb_connection_string
+   MONGODB_DATABASE=cardiovid_bot
+   LOG_LEVEL=INFO
+   ```
+
+4. **Ejecutar el bot**:
+   ```bash
+   python src/main.py
+   ```
 
 ## 🤝 Contribuciones
 
 ¡Las contribuciones son bienvenidas! Por favor, siéntete libre de enviar un Pull Request.
+
+## 📈 Próximas mejoras
+
+- Implementación de detección de sesiones abandonadas
+- Análisis estadístico de respuestas de usuarios
+- Expansión del flujo de conversación para más condiciones médicas
+- Integración con sistemas de alertas para el personal médico
+- Recordatorios programados para seguimiento de pacientes
 
 ---
 
