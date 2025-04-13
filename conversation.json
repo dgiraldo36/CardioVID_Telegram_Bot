@@ -1,0 +1,66 @@
+{
+    "conversation": [
+      {
+        "id": "saludo_inicial",
+        "message": "Hola {{nombre}}, soy el asistente del Programa de Cuidado Integral para EPOC de la Clínica CardioVID. ¿Te gustaría responder unas preguntas breves para verificar cómo te has sentido en los últimos días?",
+        "options": [
+          { "text": "Sí", "next": "filtro_1" },
+          { "text": "No", "next": "despedida" }
+        ]
+      },
+      {
+        "id": "filtro_1",
+        "message": "En los últimos 3 días:\n1. ¿Has tenido más tos o flema de lo habitual?\n2. ¿Te has sentido más ahogado al caminar o hacer esfuerzos?\n3. ¿Has usado más veces el inhalador de rescate?\n4. ¿Has tenido fiebre o malestar general?\n5. ¿Te ha costado dormir por la dificultad para respirar?",
+        "options": [
+          { "text": "Sí a 2 o más", "next": "filtro_2" },
+          { "text": "No o solo 1", "next": "recomendaciones_finales" }
+        ]
+      },
+      {
+        "id": "filtro_2",
+        "message": "Gracias. Ahora indícanos:\n1. ¿Tu flema es espesa o amarilla/verde?\n2. ¿Sientes opresión en el pecho?\n3. ¿Has perdido el apetito o tienes debilidad general?\n4. ¿Has dejado de hacer tus actividades cotidianas?\n5. ¿Tienes latidos rápidos, confusión o labios morados?",
+        "options": [
+          { "text": "Sí a 2 o más, sin signos de alarma", "next": "teleconsulta" },
+          { "text": "Sí con signos de alarma", "next": "hospital_dia" },
+          { "text": "No", "next": "recomendaciones_finales" }
+        ]
+      },
+      {
+        "id": "teleconsulta",
+        "message": "Hemos detectado que podrías estar en una exacerbación leve. Te contactaremos para una teleconsulta médica breve y definir el tratamiento. Estaremos contigo muy pronto.",
+        "next": "fin"
+      },
+      {
+        "id": "hospital_dia",
+        "message": "Detectamos signos que requieren atención prioritaria. Te hemos agendado para una valoración presencial HOY en el Hospital Día entre 8:00 a.m. y 10:00 a.m. Por favor asiste lo más pronto posible.",
+        "next": "fin"
+      },
+      {
+        "id": "recomendaciones_finales",
+        "message": "Por ahora no detectamos señales de alarma. Recomendaciones:\n- Usa tus inhaladores todos los días.\n- Evita personas enfermas.\n- Mantente hidratado y aliméntate bien.\n- Haz ejercicios de respiración.\n\nSi presentas más síntomas, responde con la palabra EMPEORÉ.",
+        "next": "fin"
+      },
+      {
+        "id": "despedida",
+        "message": "Perfecto, recuerda que puedes escribirnos si presentas algún síntoma. ¡Cuidamos de ti!",
+        "next": "fin"
+      },
+      {
+        "id": "fin",
+        "message": "¿Deseas recibir recomendaciones educativas semanales por este medio? (Sí/No)",
+        "options": [
+          { "text": "Sí", "next": "registro_educacion" },
+          { "text": "No", "next": "cerrar_chat" }
+        ]
+      },
+      {
+        "id": "registro_educacion",
+        "message": "Perfecto, te enviaremos recomendaciones de salud cada semana. ¡Estamos contigo!",
+        "next": "cerrar_chat"
+      },
+      {
+        "id": "cerrar_chat",
+        "message": "Gracias por tu tiempo. ¡Que tengas un buen día!"
+      }
+    ]
+  }
