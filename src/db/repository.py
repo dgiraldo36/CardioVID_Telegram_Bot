@@ -18,7 +18,11 @@ class MongoDBRepository:
         """Connect to MongoDB"""
         if self.client is None:
             try:
-                self.client = AsyncIOMotorClient(settings.MONGODB_CONNECTION_STRING)
+                self.client = AsyncIOMotorClient(
+                    settings.MONGODB_CONNECTION_STRING,
+                    ssl=True,
+                    tlsAllowInvalidCertificates=True
+                )
                 self.db = self.client[settings.MONGODB_DATABASE]
                 self.users = self.db.users
                 self.sessions = self.db.sessions

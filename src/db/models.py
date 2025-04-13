@@ -53,6 +53,7 @@ class UserSession(BaseModel):
     session_type: str  # "normal" o "empeoramiento"
     responses: List[NodeResponse]
     completed: bool = False
+    final_message: Optional[str] = None
     
     @classmethod
     def create_new(cls, telegram_id: int, session_type: str = "normal") -> "UserSession":
@@ -80,10 +81,12 @@ class UserSession(BaseModel):
         )
         self.end_time = now
     
-    def complete_session(self) -> None:
+    def complete_session(self, final_message: Optional[str] = None) -> None:
         """Mark the session as completed"""
         self.completed = True
         self.end_time = datetime.now().isoformat()
+        if final_message:
+            self.final_message = final_message
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert model to dictionary for MongoDB storage"""

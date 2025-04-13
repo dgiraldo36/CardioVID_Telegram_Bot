@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import random
 from datetime import datetime
 from typing import Dict, Any, Optional
 from loguru import logger
@@ -95,9 +96,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "Comandos disponibles:\n"
         "/start - Iniciar el bot\n"
         "/help - Mostrar esta ayuda\n"
-        "/reset - Reiniciar la conversación\n\n"
+        "/reset - Reiniciar la conversación\n"
+        "/historial - Ver tu historial de interacciones\n"
+        "/empeore - Reportar empeoramiento de síntomas\n\n"
         "Si en algún momento presentas síntomas de empeoramiento, "
-        "escribe la palabra EMPEORÉ y seguiremos el protocolo."
+        "puedes usar el comando /empeore o escribir la palabra EMPEORÉ "
+        "y seguiremos el protocolo de exacerbación."
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
@@ -110,7 +114,8 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         # Complete current session if exists
         current_session = context.user_data.get("current_session")
         if current_session:
-            current_session.complete_session()
+            final_message = "Sesión reiniciada por el usuario"
+            current_session.complete_session(final_message=final_message)
             await db_repository.update_session(current_session)
         
         # Create new session
@@ -180,12 +185,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Get next node id
     next_node_id = conversation_manager.get_next_node_id(current_node_id, selected_option)
     if not next_node_id:
+        # Mensaje final para la sesión
+        final_message = "Conversación finalizada"
+        
         # Complete session when conversation ends
-        session.complete_session()
+        session.complete_session(final_message=final_message)
         await db_repository.update_session(session)
         context.user_data.pop("current_session", None)
         
-        await query.message.reply_text("Conversación finalizada")
+        await query.message.reply_text(final_message)
         return ConversationHandler.END
     
     # Update user with new node
@@ -206,6 +214,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Send new message
     await query.message.reply_text(message_text, reply_markup=markup)
     
+    # Recordatorio ocasional sobre el comando /empeore (10% de probabilidad)
+    should_remind = random.random() < 0.1  # 10% de probabilidad
+    if should_remind:
+        reminder_text = (
+            "📝 *Recordatorio*: Si en algún momento presentas empeoramiento de síntomas, "
+            "puedes usar el comando /empeore para acceder rápidamente al protocolo de exacerbación."
+        )
+        await query.message.reply_text(reminder_text, parse_mode="Markdown")
+    
     # Return appropriate state based on node
     return conversation_manager.get_state_for_node(next_node_id)
 
@@ -225,7 +242,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Complete current session if exists
         current_session = context.user_data.get("current_session")
         if current_session:
-            current_session.complete_session()
+            final_message = "Sesión terminada por empeoramiento de síntomas"
+            current_session.complete_session(final_message=final_message)
             await db_repository.update_session(current_session)
         
         # Create new session for empeoramiento
@@ -291,10 +309,12 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         start_date = datetime.fromisoformat(session.start_time).strftime("%d/%m/%Y %H:%M")
         session_type = "Empeoramiento" if session.session_type == "empeoramiento" else "Normal"
         responses_count = len(session.responses)
+        final_msg = f"✓ {session.final_message}" if session.final_message else "✓ Completada"
         
         history_text += (
             f"*{start_date}* - Tipo: {session_type}\n"
             f"Respuestas: {responses_count}\n"
+            f"Estado: {final_msg}\n"
             "Últimas respuestas:\n"
         )
         
@@ -315,6 +335,9 @@ async def main() -> None:
 
     # Connect to database
     await db_repository.connect()
+    
+    # Configure bot commands menu
+    await setup_bot_commands(application)
     
     # Setup conversation handler
     conv_handler = ConversationHandler(
@@ -344,6 +367,8 @@ async def main() -> None:
             CommandHandler("start", start),
             CommandHandler("reset", reset_command),
             CommandHandler("help", help_command),
+            CommandHandler("historial", history_command),
+            CommandHandler("empeore", empeore_command),
             MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message),
         ],
     )
@@ -351,6 +376,8 @@ async def main() -> None:
     # Register handlers
     application.add_handler(conv_handler)
     application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("historial", history_command))
+    application.add_handler(CommandHandler("empeore", empeore_command))
     
     # Start the Bot
     logger.info(f"Starting CardioVID Bot as @{settings.BOT_NAME}")
@@ -380,6 +407,69 @@ async def main() -> None:
     await application.stop()
     await db_repository.close()
     logger.info("Bot stopped")
+
+async def setup_bot_commands(application: Application) -> None:
+    """Set up bot commands menu"""
+    commands = [
+        ("start", "Iniciar el bot"),
+        ("help", "Mostrar ayuda"),
+        ("reset", "Reiniciar la conversación"),
+        ("historial", "Ver mi historial"),
+        ("empeore", "Reportar empeoramiento")
+    ]
+    
+    await application.bot.set_my_commands(commands)
+    logger.info("Bot commands menu configured")
+
+async def empeore_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handler for /empeore command - Same as typing EMPEORÉ"""
+    user_id = update.effective_user.id
+    
+    await update.message.reply_text(
+        "He detectado que tus síntomas han empeorado. "
+        "Te estamos redirigiendo al protocolo de exacerbación..."
+    )
+    
+    # Reset conversation to filtro_1
+    user_db = await db_repository.get_user(user_id)
+    
+    if not user_db:
+        await update.message.reply_text("Por favor, inicia el bot primero con /start")
+        return ConversationHandler.END
+    
+    # Complete current session if exists
+    current_session = context.user_data.get("current_session")
+    if current_session:
+        final_message = "Sesión terminada por empeoramiento de síntomas (comando)"
+        current_session.complete_session(final_message=final_message)
+        await db_repository.update_session(current_session)
+    
+    # Create new session for empeoramiento
+    session = UserSession.create_new(telegram_id=user_id, session_type="empeoramiento")
+    session.add_response(
+        node_id="EMPEORÉ_COMMAND",
+        response="/empeore",
+        message_text="Usuario reportó empeoramiento (comando)"
+    )
+    await db_repository.create_session(session)
+    context.user_data["current_session"] = session
+    
+    # Reset conversation to filtro_1
+    user_db.current_node = "filtro_1"
+    await db_repository.update_user(user_db)
+    
+    # Store current node ID in context
+    context.user_data["current_node"] = "filtro_1"
+    
+    node = conversation_manager.get_node("filtro_1")
+    user_data = {"nombre": user_db.first_name}
+    message_text = conversation_manager.format_message(node, user_data)
+    
+    # Create keyboard markup
+    markup = conversation_manager.create_keyboard_markup(node)
+    
+    await update.message.reply_text(message_text, reply_markup=markup)
+    return ConversationState.FILTRO_1
 
 if __name__ == "__main__":
     try:
