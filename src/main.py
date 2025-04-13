@@ -23,6 +23,38 @@ from src.conversation.models import ConversationState
 from src.db.repository import MongoDBRepository
 from src.db.models import UserDB, UserSession
 
+# Función auxiliar para obtener mensajes de forma segura
+def get_node_message(node) -> str:
+    """Obtener el mensaje de un nodo de forma segura, manejando diferentes tipos de datos"""
+    try:
+        # Caso 1: Si es un diccionario con clave "message"
+        if isinstance(node, dict) and "message" in node:
+            return str(node["message"])
+        
+        # Caso 2: Si es un objeto con atributo message
+        if hasattr(node, "message"):
+            return str(node.message)
+        
+        # Caso 3: Si es un objeto con método get
+        if hasattr(node, "get") and callable(getattr(node, "get")):
+            try:
+                msg = node.get("message", "")
+                return str(msg) if msg is not None else ""
+            except:
+                pass
+        
+        # Caso 4: Si podemos convertirlo a string
+        try:
+            return str(node)
+        except:
+            pass
+        
+        # Si todo falla, devolver cadena vacía
+        return ""
+    except Exception as e:
+        logger.error(f"Error al obtener mensaje del nodo: {e}")
+        return ""
+
 # Configure logger
 logger.remove()
 logger.add(sys.stderr, level=settings.LOG_LEVEL)
@@ -49,6 +81,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["user_id"] = user_id
     context.user_data["first_name"] = first_name
     
+    # Complete current session if exists
+    current_session = context.user_data.get("current_session")
+    if current_session:
+        final_message = "Sesión terminada por inicio de nueva conversación"
+        current_session.complete_session(final_message=final_message)
+        await db_repository.update_session(current_session)
+        logger.info(f"Sesión anterior completada por /start para usuario {user_id} con mensaje final: {final_message}")
+    
     # Get or create user in database
     user_db = await db_repository.get_user(user_id)
     if not user_db:
@@ -59,11 +99,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             username=username
         )
         await db_repository.create_user(user_db)
+        logger.info(f"Nuevo usuario creado: {user_id}")
     
     # Create new session
     session = UserSession.create_new(telegram_id=user_id)
     await db_repository.create_session(session)
     context.user_data["current_session"] = session
+    logger.info(f"Nueva sesión creada por /start para usuario {user_id}")
     
     # Reset conversation to beginning
     user_db.current_node = "saludo_inicial"
@@ -80,6 +122,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         
         # Store current node ID in context
         context.user_data["current_node"] = "saludo_inicial"
+        
+        # Añadir respuesta a la nueva sesión
+        session.add_response(
+            node_id="START_COMMAND",
+            response="/start",
+            message_text="Inicio de conversación"
+        )
+        await db_repository.update_session(session)
         
         await update.message.reply_text(message_text, reply_markup=markup)
         return ConversationState.RESPONDING
@@ -117,11 +167,13 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             final_message = "Sesión reiniciada por el usuario"
             current_session.complete_session(final_message=final_message)
             await db_repository.update_session(current_session)
+            logger.info(f"Sesión completada por reset para usuario {user_id} con mensaje final: {final_message}")
         
         # Create new session
         session = UserSession.create_new(telegram_id=user_id)
         await db_repository.create_session(session)
         context.user_data["current_session"] = session
+        logger.info(f"Nueva sesión creada por reset para usuario {user_id}")
         
         user_db.current_node = "saludo_inicial"
         await db_repository.update_user(user_db)
@@ -135,6 +187,14 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         
         # Create keyboard markup
         markup = conversation_manager.create_keyboard_markup(initial_node)
+        
+        # Añadir respuesta a la nueva sesión
+        session.add_response(
+            node_id="RESET_COMMAND",
+            response="/reset",
+            message_text="Conversación reiniciada"
+        )
+        await db_repository.update_session(session)
         
         await update.message.reply_text(message_text, reply_markup=markup)
         return ConversationState.RESPONDING
@@ -170,12 +230,18 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         context.user_data["current_session"] = session
     
     # Add response to session
-    session.add_response(
-        node_id=current_node_id,
-        response=selected_option,
-        message_text=current_node.message
-    )
-    await db_repository.update_session(session)
+    try:
+        # Extraer mensaje del nodo de forma segura
+        node_message = get_node_message(current_node)
+        session.add_response(
+            node_id=current_node_id,
+            response=selected_option,
+            message_text=node_message
+        )
+        await db_repository.update_session(session)
+        logger.debug(f"Respuesta registrada para usuario {user_id}, nodo {current_node_id}")
+    except Exception as e:
+        logger.error(f"Error al guardar respuesta: {e}")
     
     # Record response in user document
     timestamp = datetime.now().isoformat()
@@ -189,8 +255,13 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         final_message = "Conversación finalizada"
         
         # Complete session when conversation ends
-        session.complete_session(final_message=final_message)
-        await db_repository.update_session(session)
+        try:
+            session.complete_session(final_message=final_message)
+            await db_repository.update_session(session)
+            logger.info(f"Sesión completada para usuario {user_id} con mensaje final: {final_message}")
+        except Exception as e:
+            logger.error(f"Error al completar sesión: {e}")
+        
         context.user_data.pop("current_session", None)
         
         await query.message.reply_text(final_message)
@@ -233,6 +304,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     # Check if message is "EMPEORÉ"
     if message_text.upper() == "EMPEORÉ":
+        # Mensaje de respuesta
+        response_message = "He detectado que tus síntomas han empeorado. Te estamos redirigiendo al protocolo de exacerbación..."
+        
         # Get user from database
         user_db = await db_repository.get_user(user_id)
         if not user_db:
@@ -242,24 +316,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Complete current session if exists
         current_session = context.user_data.get("current_session")
         if current_session:
-            final_message = "Sesión terminada por empeoramiento de síntomas"
+            final_message = "Sesión terminada por empeoramiento de síntomas (texto)"
             current_session.complete_session(final_message=final_message)
             await db_repository.update_session(current_session)
+            logger.info(f"Sesión anterior completada para usuario {user_id} con mensaje final: {final_message}")
         
         # Create new session for empeoramiento
         session = UserSession.create_new(telegram_id=user_id, session_type="empeoramiento")
         session.add_response(
             node_id="EMPEORÉ_MESSAGE",
             response=message_text,
-            message_text="Usuario reportó empeoramiento"
+            message_text=response_message
         )
         await db_repository.create_session(session)
         context.user_data["current_session"] = session
+        logger.info(f"Nueva sesión de empeoramiento creada para usuario {user_id} por texto EMPEORÉ")
         
-        await update.message.reply_text(
-            "He detectado que tus síntomas han empeorado. "
-            "Te estamos redirigiendo al protocolo de exacerbación..."
-        )
+        await update.message.reply_text(response_message)
         
         # Reset conversation to filtro_1
         user_db.current_node = "filtro_1"
@@ -305,14 +378,20 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Format session history
     history_text = "📊 *Historial de sesiones:*\n\n"
     
-    for session in sessions:
+    for i, session in enumerate(sessions, 1):
         start_date = datetime.fromisoformat(session.start_time).strftime("%d/%m/%Y %H:%M")
-        session_type = "Empeoramiento" if session.session_type == "empeoramiento" else "Normal"
+        end_date = datetime.fromisoformat(session.end_time).strftime("%d/%m/%Y %H:%M")
+        duration = datetime.fromisoformat(session.end_time) - datetime.fromisoformat(session.start_time)
+        minutes = duration.total_seconds() // 60
+        
+        session_type = "⚠️ Empeoramiento" if session.session_type == "empeoramiento" else "📝 Normal"
         responses_count = len(session.responses)
         final_msg = f"✓ {session.final_message}" if session.final_message else "✓ Completada"
         
         history_text += (
-            f"*{start_date}* - Tipo: {session_type}\n"
+            f"*{i}. Sesión del {start_date}*\n"
+            f"Tipo: {session_type}\n"
+            f"Duración: {int(minutes)} min\n"
             f"Respuestas: {responses_count}\n"
             f"Estado: {final_msg}\n"
             "Últimas respuestas:\n"
@@ -320,13 +399,14 @@ async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         
         # Show last 3 responses of the session
         for response in session.responses[-3:]:
-            history_text += f"- Nodo: `{response.node_id}` → `{response.response}`\n"
+            history_text += f"- `{response.node_id}`: {response.response}\n"
         
         history_text += "\n"
     
-    history_text += "\nSe muestran las últimas 5 sesiones completadas."
+    history_text += "\n_Se muestran las últimas 5 sesiones completadas._"
     
     await update.message.reply_text(history_text, parse_mode="Markdown")
+    logger.info(f"Historial mostrado para usuario {user_id}: {len(sessions)} sesiones")
 
 async def main() -> None:
     """Start the bot."""
@@ -425,10 +505,10 @@ async def empeore_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     """Handler for /empeore command - Same as typing EMPEORÉ"""
     user_id = update.effective_user.id
     
-    await update.message.reply_text(
-        "He detectado que tus síntomas han empeorado. "
-        "Te estamos redirigiendo al protocolo de exacerbación..."
-    )
+    # Mensaje de respuesta
+    response_message = "He detectado que tus síntomas han empeorado. Te estamos redirigiendo al protocolo de exacerbación..."
+    
+    await update.message.reply_text(response_message)
     
     # Reset conversation to filtro_1
     user_db = await db_repository.get_user(user_id)
@@ -440,19 +520,29 @@ async def empeore_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Complete current session if exists
     current_session = context.user_data.get("current_session")
     if current_session:
-        final_message = "Sesión terminada por empeoramiento de síntomas (comando)"
-        current_session.complete_session(final_message=final_message)
-        await db_repository.update_session(current_session)
+        try:
+            final_message = "Sesión terminada por empeoramiento de síntomas (comando)"
+            current_session.complete_session(final_message=final_message)
+            await db_repository.update_session(current_session)
+            logger.info(f"Sesión anterior completada para usuario {user_id} con mensaje final: {final_message}")
+        except Exception as e:
+            logger.error(f"Error al completar sesión anterior: {e}")
     
     # Create new session for empeoramiento
-    session = UserSession.create_new(telegram_id=user_id, session_type="empeoramiento")
-    session.add_response(
-        node_id="EMPEORÉ_COMMAND",
-        response="/empeore",
-        message_text="Usuario reportó empeoramiento (comando)"
-    )
-    await db_repository.create_session(session)
-    context.user_data["current_session"] = session
+    try:
+        session = UserSession.create_new(telegram_id=user_id, session_type="empeoramiento")
+        session.add_response(
+            node_id="EMPEORÉ_COMMAND",
+            response="/empeore",
+            message_text=response_message
+        )
+        await db_repository.create_session(session)
+        context.user_data["current_session"] = session
+        logger.info(f"Nueva sesión de empeoramiento creada para usuario {user_id}")
+    except Exception as e:
+        logger.error(f"Error al crear nueva sesión: {e}")
+        # Si falla, crear solo el context para que no falle el resto del código
+        context.user_data["current_session"] = None
     
     # Reset conversation to filtro_1
     user_db.current_node = "filtro_1"

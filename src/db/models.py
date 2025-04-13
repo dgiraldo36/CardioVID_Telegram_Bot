@@ -71,12 +71,25 @@ class UserSession(BaseModel):
     def add_response(self, node_id: str, response: str, message_text: Optional[str] = None) -> None:
         """Add a response to the session"""
         now = datetime.now().isoformat()
+        
+        # Asegurar que node_id y response sean strings
+        node_id_str = str(node_id) if node_id is not None else "unknown_node"
+        response_str = str(response) if response is not None else ""
+        
+        # Asegurar que message_text sea string o None
+        message_text_str = None
+        if message_text is not None:
+            try:
+                message_text_str = str(message_text)
+            except:
+                message_text_str = "Error en mensaje"
+        
         self.responses.append(
             NodeResponse(
-                node_id=node_id,
-                response=response,
+                node_id=node_id_str,
+                response=response_str,
                 timestamp=now,
-                message_text=message_text
+                message_text=message_text_str
             )
         )
         self.end_time = now
