@@ -316,40 +316,39 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         # Complete current session if exists
         current_session = context.user_data.get("current_session")
         if current_session:
-            final_message = "Sesión terminada por empeoramiento de síntomas (texto)"
-            current_session.complete_session(final_message=final_message)
-            await db_repository.update_session(current_session)
-            logger.info(f"Sesión anterior completada para usuario {user_id} con mensaje final: {final_message}")
+            try:
+                final_message = "Sesión terminada por empeoramiento de síntomas (texto)"
+                current_session.complete_session(final_message=final_message)
+                await db_repository.update_session(current_session)
+                logger.info(f"Sesión anterior completada para usuario {user_id} con mensaje final: {final_message}")
+            except Exception as e:
+                logger.error(f"Error al completar sesión anterior: {e}")
         
         # Create new session for empeoramiento
-        session = UserSession.create_new(telegram_id=user_id, session_type="empeoramiento")
-        session.add_response(
-            node_id="EMPEORÉ_MESSAGE",
-            response=message_text,
-            message_text=response_message
-        )
-        await db_repository.create_session(session)
-        context.user_data["current_session"] = session
-        logger.info(f"Nueva sesión de empeoramiento creada para usuario {user_id} por texto EMPEORÉ")
+        try:
+            session = UserSession.create_new(telegram_id=user_id, session_type="empeoramiento")
+            session.add_response(
+                node_id="EMPEORÉ_MESSAGE",
+                response=message_text,
+                message_text=response_message
+            )
+            # Marcar la sesión como completada inmediatamente
+            session.complete_session(final_message="Protocolo de exacerbación activado")
+            await db_repository.create_session(session)
+            logger.info(f"Sesión de empeoramiento creada y completada para usuario {user_id} por texto EMPEORÉ")
+        except Exception as e:
+            logger.error(f"Error al crear sesión de empeoramiento: {e}")
         
-        await update.message.reply_text(response_message)
-        
-        # Reset conversation to filtro_1
+        # Establecer nodo actual en filtro_1 (para futuras interacciones)
         user_db.current_node = "filtro_1"
         await db_repository.update_user(user_db)
-        
-        # Store current node ID in context
         context.user_data["current_node"] = "filtro_1"
         
-        node = conversation_manager.get_node("filtro_1")
-        user_data = {"nombre": user_db.first_name}
-        message_text = conversation_manager.format_message(node, user_data)
+        # Enviar solo el mensaje de activación del protocolo
+        await update.message.reply_text(response_message)
         
-        # Create keyboard markup
-        markup = conversation_manager.create_keyboard_markup(node)
-        
-        await update.message.reply_text(message_text, reply_markup=markup)
-        return ConversationState.FILTRO_1
+        # La interacción termina aquí
+        return ConversationState.RESPONDING
     else:
         await update.message.reply_text(
             "Por favor, usa los botones proporcionados para responder "
@@ -508,11 +507,8 @@ async def empeore_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Mensaje de respuesta
     response_message = "He detectado que tus síntomas han empeorado. Te estamos redirigiendo al protocolo de exacerbación..."
     
-    await update.message.reply_text(response_message)
-    
-    # Reset conversation to filtro_1
+    # Get user from database
     user_db = await db_repository.get_user(user_id)
-    
     if not user_db:
         await update.message.reply_text("Por favor, inicia el bot primero con /start")
         return ConversationHandler.END
@@ -536,30 +532,23 @@ async def empeore_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             response="/empeore",
             message_text=response_message
         )
+        # Marcar la sesión como completada inmediatamente
+        session.complete_session(final_message="Protocolo de exacerbación activado")
         await db_repository.create_session(session)
-        context.user_data["current_session"] = session
-        logger.info(f"Nueva sesión de empeoramiento creada para usuario {user_id}")
+        logger.info(f"Sesión de empeoramiento creada y completada para usuario {user_id} por comando /empeore")
     except Exception as e:
-        logger.error(f"Error al crear nueva sesión: {e}")
-        # Si falla, crear solo el context para que no falle el resto del código
-        context.user_data["current_session"] = None
+        logger.error(f"Error al crear sesión de empeoramiento: {e}")
     
-    # Reset conversation to filtro_1
+    # Establecer nodo actual en filtro_1 (para futuras interacciones)
     user_db.current_node = "filtro_1"
     await db_repository.update_user(user_db)
-    
-    # Store current node ID in context
     context.user_data["current_node"] = "filtro_1"
     
-    node = conversation_manager.get_node("filtro_1")
-    user_data = {"nombre": user_db.first_name}
-    message_text = conversation_manager.format_message(node, user_data)
+    # Enviar solo el mensaje de activación del protocolo
+    await update.message.reply_text(response_message)
     
-    # Create keyboard markup
-    markup = conversation_manager.create_keyboard_markup(node)
-    
-    await update.message.reply_text(message_text, reply_markup=markup)
-    return ConversationState.FILTRO_1
+    # La interacción termina aquí
+    return ConversationState.RESPONDING
 
 if __name__ == "__main__":
     try:
