@@ -173,7 +173,7 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     session.add_response(
         node_id=current_node_id,
         response=selected_option,
-        message_text=current_node.get("message", "")
+        message_text=current_node.message
     )
     await db_repository.update_session(session)
     
